@@ -321,11 +321,12 @@ textarea:hover,input[type=text]:hover{background:color-mix(in srgb,var(--line) 2
       headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+cfg.token},
       body:body?JSON.stringify(body):undefined});
   }
-  function errOf(r){return new Error(r.status===401?'auth':r.status===403||r.status===404?'repo':'net')}
+  function errOf(r){return new Error(r.status===401?'auth':r.status===403?'perm':r.status===404?'repo':'net')}
   function why(e){
     var m=e&&e.message;
     return m==='auth'?'アクセストークンが正しくないか、期限が切れています。':
-           m==='repo'?'リポジトリが見つからないか、トークンに読み書きの権限がありません。':
+           m==='repo'?'リポジトリが見つかりません。名前（ユーザー名/リポジトリ名）が正しいか、トークンの Repository access でこのリポジトリを選んでいるか確認してください。':
+           m==='perm'?'トークンに読み書きの権限がありません。トークンの Permissions で Contents を「Read and write」にしてください。':
            m==='bad'?'リポジトリの '+FILE+' はシーンフロー帳のデータではありません。':
            '通信できませんでした。接続を確認してください。';
   }
@@ -374,7 +375,7 @@ textarea:hover,input[type=text]:hover{background:color-mix(in srgb,var(--line) 2
       var m=e&&e.message;
       writing--; pending=true; failed=true;
       if(m==='conflict')conflict();
-      else if(m==='auth'||m==='repo'){status('同期できませんでした');gate(why(e))}
+      else if(m==='auth'||m==='repo'||m==='perm'){status('同期できませんでした');gate(why(e))}
       else{status('同期できませんでした。通信が戻ると再試行します');clearTimeout(timer);timer=setTimeout(flush,15000)}
     });
     return saving;
