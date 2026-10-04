@@ -1,0 +1,688 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>シーンフロー帳</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: 1本の縦の流れ。テーマ → シーン → (カットシーン) → シーン … → ループ。分岐はルートを横に並べる。左のレールが最初のシーンへ戻る線。 */
+:root{
+  --bg:#EDF0F4; --surface:#FFFFFF; --ink:#1B2430; --muted:#5E6B7A; --line:#B9C3CE;
+  --scene:#2F5BD0; --cut:#9A5B00; --cut-bg:#FFF3D9; --loop:#0B7A72; --loop-bg:#E2F5F2;
+  --branch:#7A3FB8; --branch-bg:#F1E9FA; --danger:#B3261E;
+  --display:"DotGothic16","Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",monospace;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12161C; --surface:#1C222B; --ink:#E6EBF1; --muted:#97A3B1; --line:#3A4452;
+    --scene:#8FAEFF; --cut:#F0B354; --cut-bg:#2C2513; --loop:#55CFC4; --loop-bg:#14302E;
+    --branch:#C9A2FF; --branch-bg:#231B2E; --danger:#FF8A80;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12161C; --surface:#1C222B; --ink:#E6EBF1; --muted:#97A3B1; --line:#3A4452;
+  --scene:#8FAEFF; --cut:#F0B354; --cut-bg:#2C2513; --loop:#55CFC4; --loop-bg:#14302E;
+  --branch:#C9A2FF; --branch-bg:#231B2E; --danger:#FF8A80;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;padding-inline:16px;padding-block:20px 96px}
+.wrap{max-width:720px;margin-inline:auto;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:20px}
+h1{font-family:var(--display);font-weight:400;font-size:22px;margin:0;letter-spacing:.04em;flex:1 1 auto}
+#status{font-size:12px;color:var(--muted)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,textarea:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--scene);outline-offset:2px}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 12px;font-size:13px;font-weight:500}
+.btn:hover{border-color:var(--ink)}
+
+.btn.sm{padding:4px 10px;font-size:12.5px;white-space:nowrap}
+.btn[aria-expanded="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:20px;display:flex;flex-direction:column;gap:10px}
+.panel h2{font-family:var(--display);font-size:14px;font-weight:400;letter-spacing:.12em;margin:0}
+.phead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;max-height:300px;overflow-y:auto}
+.list li{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
+.pick{flex:1;min-width:0;text-align:left;background:none;border:0;border-radius:6px;padding:4px 6px;display:flex;flex-direction:column}
+.pick:hover{background:color-mix(in srgb,var(--line) 22%,transparent)}
+.pick b,.meta b{font-weight:700;overflow-wrap:anywhere}
+.pick small,.meta small{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+li[aria-current="true"] .pick b{color:var(--scene)}
+.meta{flex:1;min-width:0;display:flex;flex-direction:column;padding-left:6px}
+.chip{display:inline-block;font-size:11px;font-weight:500;border:1px solid var(--line);border-radius:999px;padding:0 7px;color:var(--muted);margin-left:6px;vertical-align:1px}
+.recrow{display:flex;gap:8px;flex-wrap:wrap}
+.recrow input[type=text],.recrow input[type=password]{flex:1 1 160px;min-width:0;width:auto;margin:0;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;font-size:16px;color:var(--ink);background:transparent}
+.empty{color:var(--muted);font-size:13px;margin:0}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.tag{font-family:var(--display);font-size:13px;letter-spacing:.12em;white-space:nowrap}
+.theme{border:2px solid var(--ink)}
+.scene{border-top:3px solid var(--scene)}
+.scene .tag{color:var(--scene)}
+.head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:2px 8px}
+.tools{display:flex;gap:4px;margin-left:auto}
+.route .tools{gap:0}
+.route .ico{width:28px;height:28px}
+.ico{flex:none;width:32px;height:32px;border:1px solid transparent;border-radius:6px;background:none;color:var(--muted);font-size:15px;line-height:1;display:grid;place-items:center;padding:0}
+.ico:hover:not(:disabled){border-color:var(--line);color:var(--ink)}
+.ico.del:hover:not(:disabled){color:var(--danger)}
+.ico:disabled{opacity:.3;cursor:default}
+
+textarea,input[type=text]{font:inherit;font-size:16px;color:var(--ink);background:transparent;border:0;border-radius:4px;padding:4px 6px;margin-inline:-6px;width:calc(100% + 12px);resize:none;overflow:hidden;display:block}
+textarea::placeholder,input::placeholder{color:var(--muted);opacity:.75}
+textarea:hover,input[type=text]:hover{background:color-mix(in srgb,var(--line) 22%,transparent)}
+.title{font-weight:700;font-size:17px}
+.theme textarea{font-weight:700;font-size:18px}
+
+.link{display:flex;flex-direction:column;align-items:center}
+.wire{width:2px;height:12px;background:var(--line)}
+.tip{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--line)}
+.row{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;padding-block:2px}
+.add{background:none;border:1px dashed var(--line);border-radius:999px;padding:3px 12px;font-size:12.5px;color:var(--muted)}
+.add:hover{border-style:solid;color:var(--ink);border-color:var(--ink)}
+.add.cutadd:hover{color:var(--cut);border-color:var(--cut)}
+.add.bradd:hover{color:var(--branch);border-color:var(--branch)}
+.add.main{border:1px solid var(--scene);color:var(--scene);font-weight:700;padding:7px 18px;font-size:14px;background:var(--surface)}
+.add.main:hover{background:var(--scene);color:var(--surface);border-color:var(--scene)}
+
+.cut{align-self:stretch;margin-inline:9%;background:var(--cut-bg);border:1px dashed var(--cut);padding:8px 12px;gap:2px}
+.cut .tag{color:var(--cut);font-size:12px}
+.cut textarea{font-size:15px}
+.cut .ico{width:26px;height:26px}
+
+.branch{background:var(--branch-bg);border:2px dashed var(--branch);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.branch>.head{padding-left:6px}
+.branch>.head .tag,.rhead .tag{color:var(--branch)}
+.routes{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.route{flex:1 0 220px;min-width:0;display:flex;flex-direction:column;background:var(--bg);border-radius:8px;padding:8px}
+.rhead{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--branch);border-radius:8px;padding:2px 2px 2px 10px}
+.rhead input[type=text]{flex:1;min-width:0;width:auto;margin:0;font-size:14px;font-weight:500}
+.rhead .ico{width:28px;height:28px}
+.route .card{padding:10px 12px}
+.end{margin-top:auto;width:100%;font:inherit;font-size:13px;font-weight:500;color:var(--branch);background:var(--surface);border:1px solid var(--branch);border-radius:8px;padding:6px 8px}
+.branch>.add{align-self:center}
+
+.zone{position:relative;padding-left:26px;display:flex;flex-direction:column}
+.rail{position:absolute;left:4px;top:24px;bottom:22px;width:22px;border:2px solid var(--loop);border-right:0;border-radius:10px 0 0 10px;pointer-events:none}
+.rail::before{content:"";position:absolute;top:-7px;right:-1px;border-left:9px solid var(--loop);border-top:6px solid transparent;border-bottom:6px solid transparent}
+.loop{background:var(--loop-bg);border:2px solid var(--loop)}
+.loop .tag{color:var(--loop)}
+
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);border-radius:8px;padding:8px 10px 8px 14px;display:flex;align-items:center;gap:12px;font-size:13px;max-width:calc(100% - 32px);box-shadow:0 4px 16px rgba(0,0,0,.25)}
+#toast button{background:none;border:1px solid currentColor;border-radius:5px;padding:2px 10px;font-size:13px;font-weight:700;white-space:nowrap}
+#fallback{margin-top:20px}
+#fallback textarea{border:1px solid var(--line);background:var(--surface);margin:6px 0 0;width:100%;height:180px;overflow:auto;font-size:13px;padding:8px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>シーンフロー帳</h1>
+    <span id="status" role="status"></span>
+    <button class="btn" id="btnProj" type="button" aria-expanded="false" aria-controls="panel" hidden>企画一覧</button>
+    <button class="btn" id="btnHist" type="button" aria-expanded="false" aria-controls="panel" hidden>履歴</button>
+    <button class="btn" id="copy" type="button" hidden>テキストでコピー</button>
+    <button class="btn" id="btnFile" type="button" aria-controls="gate" hidden>同期</button>
+  </header>
+  <section class="panel" id="gate" hidden>
+    <h2>同期の設定</h2>
+    <p class="empty" id="gateMsg"></p>
+    <form class="recrow" id="cfg">
+      <input type="text" id="cfgRepo" placeholder="ユーザー名/データ用リポジトリ名" aria-label="データ用リポジトリ" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <input type="password" id="cfgToken" placeholder="アクセストークン" aria-label="アクセストークン" autocomplete="off">
+      <button class="btn" type="submit">接続</button>
+    </form>
+    <div class="recrow" id="gateMore" hidden>
+      <button class="btn" id="btnPull" type="button">最新を読み込む</button>
+      <button class="btn" id="btnImport" type="button">保存ファイルを取り込む</button>
+      <button class="btn" id="btnOut" type="button">この端末の接続を解除</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+  </section>
+  <section class="panel" id="panel" hidden></section>
+  <main id="app"></main>
+  <div id="fallback" hidden>
+    <span>コピーできなかったので、下の文字を選択してコピーしてください。</span>
+    <textarea id="fallbackText" readonly></textarea>
+  </div>
+</div>
+<div id="toast" hidden><span id="toastMsg"></span><button type="button" id="undo">元に戻す</button></div>
+
+<script>
+(function(){
+  var KEY='scene-flow-v2', OLDKEY='scene-flow-v1', MAXDEPTH=2, MAXROUTES=4, MAXSNAPS=30, OKID=/^[A-Za-z0-9]{1,40}$/;
+  var ENDS={merge:'↓ 合流して次へ進む',loop:'↩ 最初のシーンへ戻る',end:'■ ここで終わり'};
+  var $=function(id){return document.getElementById(id)};
+  var uid=function(){return Math.random().toString(36).slice(2,9)};
+  var blank=function(){return {id:uid(),type:'scene',title:'',body:'',cut:null}};
+  var newRoute=function(){return {id:uid(),label:'',end:'merge',flow:[blank()]}};
+  var newBranch=function(){return {id:uid(),type:'branch',cut:null,routes:[newRoute(),newRoute()]}};
+  var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+  var pad=function(n){return (n<10?'0':'')+n};
+  var letter=function(j){return String.fromCharCode(65+j)};
+
+  /* ---------- データ ---------- */
+  function normFlow(arr,depth){
+    var out=[];
+    if(!Array.isArray(arr))return out;
+    arr.forEach(function(s){
+      if(!s||typeof s!=='object')return;
+      var cut=(typeof s.cut==='string')?s.cut:null, id=String(s.id||uid());
+      if(s.type==='branch'&&Array.isArray(s.routes)&&depth<MAXDEPTH){
+        var routes=s.routes.filter(function(r){return r&&typeof r==='object'}).slice(0,MAXROUTES).map(function(r){
+          return {id:String(r.id||uid()),label:String(r.label||''),end:ENDS[r.end]?r.end:'merge',flow:normFlow(r.flow,depth+1)};
+        });
+        while(routes.length<2)routes.push(newRoute());
+        out.push({id:id,type:'branch',cut:cut,routes:routes});
+      }else if(s.type!=='branch'){
+        out.push({id:id,type:'scene',title:String(s.title||''),body:String(s.body||''),cut:cut});
+      }
+    });
+    return out;
+  }
+  function normalize(d){
+    if(!d||typeof d!=='object')return null;
+    var src=Array.isArray(d.flow)?d.flow:d.scenes;   /* scenes = 分岐なしの旧形式 */
+    if(!Array.isArray(src))return null;
+    var flow=normFlow(src,0); if(!flow.length)flow=[blank()];
+    return {theme:String(d.theme||''),flow:flow,loop:String(d.loop||''),t:Number(d.t)||0};
+  }
+  function itemHas(s){
+    if(s.cut)return true;
+    if(s.type==='scene')return !!(s.title||s.body);
+    return s.routes.some(function(r){return r.label||flowHas(r.flow)});
+  }
+  function flowHas(f){return f.some(itemHas)}
+
+  function normHist(arr){
+    var out=[];
+    if(!Array.isArray(arr))return out;
+    arr.forEach(function(s){
+      var n=normalize(s); if(!n)return;
+      out.push({id:String(s.id||uid()),t:Number(s.t)||0,note:String(s.note||''),auto:!!s.auto,theme:n.theme,flow:n.flow,loop:n.loop});
+    });
+    return out;
+  }
+  function fresh(){return {theme:'',flow:[blank(),blank()],loop:'',t:0}}
+  function clone(o){return JSON.parse(JSON.stringify(o))}
+  function content(d){return JSON.stringify({theme:d.theme,flow:d.flow,loop:d.loop})}
+  function docHas(d){return !!(d.theme||d.loop||flowHas(d.flow))}
+  function countScenes(f){
+    var n=0;
+    f.forEach(function(s){if(s.type==='scene')n++;else s.routes.forEach(function(r){n+=countScenes(r.flow)})});
+    return n;
+  }
+  function freshDB(){
+    var id=uid(), o={idx:{current:id,ids:[id]},docs:{},hist:{}};
+    o.docs[id]=fresh(); o.hist[id]=[];
+    return o;
+  }
+  function parseDB(d){   /* 保存ファイルの中身 → DB。形が違えば null */
+    if(!d||!d.idx||!Array.isArray(d.idx.ids)||!d.docs)return null;
+    var out={idx:{current:'',ids:[]},docs:{},hist:{}};
+    d.idx.ids.forEach(function(id){
+      var p=normalize(d.docs[id]);
+      if(p&&OKID.test(id)&&!out.docs[id]){out.docs[id]=p;out.hist[id]=normHist(d.hist&&d.hist[id]);out.idx.ids.push(id)}
+    });
+    if(!out.idx.ids.length)return null;
+    out.idx.current=out.docs[d.idx.current]?d.idx.current:out.idx.ids[0];
+    return out;
+  }
+
+  /* DB = 企画すべて。S = 表示中の企画。同期先につながるまでは空。 */
+  var DB=null, S=null;
+  var CFG=null, SHA=null;  /* CFG = 同期先 {repo, token}。SHA = 最後に読み書きした時点のファイルの版 */
+  var RT={};  /* ルートid → {br, j, route}。render のたびに作り直す */
+  var base={};  /* 企画id → 開いた時点の内容。最初の編集で自動記録に使う */
+  var pending=false, writing=0, failed=false, saving=Promise.resolve(), timer=null, undoFn=null, toastTimer=null, panel=null;
+  function cur(){return DB.idx.current}
+  function setBase(){var id=cur(); if(!(id in base))base[id]=content(S)}
+  function getList(key){return key==='main'?S.flow:RT[key].route.flow}
+
+  /* ---------- 描画 ---------- */
+  function adds(key,pos,depth,opt){
+    var a=' data-l="'+key+'" data-i="'+pos+'"', h='<div class="row">';
+    if(opt.cut)h+='<button type="button" class="add cutadd" data-act="addcut" data-l="'+key+'" data-i="'+(pos-1)+'">＋ カットシーン</button>';
+    h+='<button type="button" class="add'+(opt.main?' main':'')+'" data-act="add"'+a+'>'+(opt.main?'＋ 次のシーン':'＋ シーン')+'</button>';
+    if(depth<MAXDEPTH)h+='<button type="button" class="add bradd" data-act="addbr"'+a+'>＋ 分岐</button>';
+    return h+'</div>';
+  }
+  function flowHTML(list,key,prefix,depth){
+    var n=list.length, main=key==='main', h='';
+    if(!n)return '<div class="link">'+adds(key,0,depth,{})+'<i class="wire"></i><i class="tip"></i></div>';
+    list.forEach(function(s,i){
+      var a=' data-l="'+key+'" data-i="'+i+'"', last=i===n-1;
+      var label=prefix?prefix+(i+1):pad(i+1);
+      var kind=s.type==='branch'?'分岐':'シーン';
+      var tools='<div class="tools">'+
+        '<button type="button" class="ico" data-act="up"'+a+' aria-label="上へ移動" title="上へ移動"'+(i===0?' disabled':'')+'>↑</button>'+
+        '<button type="button" class="ico" data-act="down"'+a+' aria-label="下へ移動" title="下へ移動"'+(last?' disabled':'')+'>↓</button>'+
+        '<button type="button" class="ico del" data-act="del"'+a+' aria-label="'+kind+'を削除" title="'+kind+'を削除"'+(main&&n===1?' disabled':'')+'>✕</button></div>';
+      if(s.type==='scene'){
+        h+='<section class="card scene"><div class="head"><label class="tag" for="t-'+s.id+'">SCENE '+label+'</label>'+tools+'</div>'+
+           '<input type="text" class="title" id="t-'+s.id+'" data-k="title"'+a+' placeholder="シーン名" value="'+esc(s.title)+'">'+
+           '<textarea id="b-'+s.id+'" data-k="body"'+a+' rows="2" placeholder="このシーンで起きること、プレイヤーがすること">'+esc(s.body)+'</textarea></section>';
+      }else{
+        h+='<section class="branch"><div class="head"><span class="tag">BRANCH '+label+'</span>'+tools+'</div><div class="routes">';
+        s.routes.forEach(function(r,j){
+          RT[r.id]={br:s,j:j,route:r};
+          var c=letter(j), opts='';
+          Object.keys(ENDS).forEach(function(k){opts+='<option value="'+k+'"'+(r.end===k?' selected':'')+'>'+ENDS[k]+'</option>'});
+          h+='<div class="route"><div class="rhead"><label class="tag" for="r-'+r.id+'">'+c+'</label>'+
+             '<input type="text" id="r-'+r.id+'" data-rid="'+r.id+'" data-k="label" placeholder="このルートに進む条件" value="'+esc(r.label)+'">'+
+             '<button type="button" class="ico del" data-act="delroute" data-rid="'+r.id+'" aria-label="ルート'+c+'を削除" title="ルートを削除"'+(s.routes.length<=2?' disabled':'')+'>✕</button></div>'+
+             '<div class="link"><i class="wire"></i><i class="tip"></i></div>'+
+             flowHTML(r.flow,r.id,label+c+'-',depth+1)+
+             '<select class="end" id="e-'+r.id+'" data-rid="'+r.id+'" data-k="end" aria-label="ルート'+c+'の行き先">'+opts+'</select></div>';
+        });
+        h+='</div>';
+        if(s.routes.length<MAXROUTES)h+='<button type="button" class="add bradd" data-act="addroute"'+a+'>＋ ルート</button>';
+        h+='</section>';
+      }
+      h+='<div class="link"><i class="wire"></i>';
+      if(!last&&s.cut!==null){
+        h+='<section class="card cut"><div class="head"><label class="tag" for="c-'+s.id+'">CUTSCENE</label>'+
+           '<button type="button" class="ico del" data-act="delcut"'+a+' aria-label="カットシーンを削除" title="カットシーンを削除">✕</button></div>'+
+           '<textarea id="c-'+s.id+'" data-k="cut"'+a+' rows="1" placeholder="シーンをつなぐ演出">'+esc(s.cut)+'</textarea></section><i class="wire"></i>';
+      }
+      h+=adds(key,i+1,depth,{cut:!last&&s.cut===null,main:main&&last})+'<i class="wire"></i><i class="tip"></i></div>';
+    });
+    return h;
+  }
+  function render(){
+    RT={};
+    $('app').innerHTML=
+      '<section class="card theme"><label class="tag" for="theme">THEME</label>'+
+      '<textarea id="theme" data-k="theme" rows="1" placeholder="ゲームのテーマ">'+esc(S.theme)+'</textarea></section>'+
+      '<div class="link"><i class="wire"></i><i class="tip"></i></div>'+
+      '<div class="zone"><i class="rail" aria-hidden="true"></i>'+flowHTML(S.flow,'main','',0)+
+      '<section class="card loop"><label class="tag" for="loop">LOOP → SCENE 01</label>'+
+      '<textarea id="loop" data-k="loop" rows="2" placeholder="最後のシーンから、どうやって最初へ戻るか">'+esc(S.loop)+'</textarea></section></div>';
+    growAll();
+  }
+  function grow(el){el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px'}
+  function growAll(){document.querySelectorAll('#app textarea').forEach(grow)}
+  window.addEventListener('resize',growAll);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(growAll);
+
+  /* ---------- 保存（GitHub のデータ用リポジトリへ） ---------- */
+  var CFGKEY='scene-flow-sync', FILE='sceneflow.json', API='https://api.github.com/repos/';
+  function status(t){$('status').textContent=t}
+  function b64enc(s){
+    var b=new TextEncoder().encode(s), o='', i;
+    for(i=0;i<b.length;i+=8192)o+=String.fromCharCode.apply(null,b.subarray(i,i+8192));
+    return btoa(o);
+  }
+  function b64dec(s){
+    var o=atob(s.replace(/\s/g,'')), b=new Uint8Array(o.length), i;
+    for(i=0;i<o.length;i++)b[i]=o.charCodeAt(i);
+    return new TextDecoder().decode(b);
+  }
+  function gh(cfg,path,body){
+    return fetch(API+cfg.repo+path,{method:body?'PUT':'GET',cache:'no-store',
+      headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+cfg.token},
+      body:body?JSON.stringify(body):undefined});
+  }
+  function errOf(r){return new Error(r.status===401?'auth':r.status===403||r.status===404?'repo':'net')}
+  function why(e){
+    var m=e&&e.message;
+    return m==='auth'?'アクセストークンが正しくないか、期限が切れています。':
+           m==='repo'?'リポジトリが見つからないか、トークンに読み書きの権限がありません。':
+           m==='bad'?'リポジトリの '+FILE+' はシーンフロー帳のデータではありません。':
+           '通信できませんでした。接続を確認してください。';
+  }
+  function pull(cfg){   /* → {db, sha}。まだファイルが無ければ sha は null */
+    return gh(cfg,'/contents/'+FILE).then(function(r){
+      if(r.status===404)return gh(cfg,'').then(function(q){   /* ファイルが無いだけか、リポジトリに届かないのか */
+        if(!q.ok)throw errOf(q);
+        return {db:freshDB(),sha:null};
+      });
+      if(!r.ok)throw errOf(r);
+      return r.json().then(function(j){
+        if(j.content||!j.size)return j;
+        return gh(cfg,'/git/blobs/'+j.sha).then(function(q){   /* 1MB を超えると中身は別口で取る */
+          if(!q.ok)throw errOf(q);
+          return q.json();
+        }).then(function(bl){return {sha:j.sha,content:bl.content}});
+      }).then(function(j){
+        var db=null, text=b64dec(j.content||'');
+        if(!text.trim())db=freshDB();
+        else{try{db=parseDB(JSON.parse(text))}catch(e){}}
+        if(!db)throw new Error('bad');
+        return {db:db,sha:j.sha};
+      });
+    });
+  }
+  function mark(){
+    pending=true; status('保存中…'); clearTimeout(timer); timer=setTimeout(flush,1500);
+  }
+  function flush(){   /* DB をまるごとリポジトリへ書く。書き込みは1つずつ順番に */
+    clearTimeout(timer);
+    if(!pending||!CFG)return saving;
+    pending=false; writing++;
+    var text=JSON.stringify({app:'scene-flow',v:1,idx:DB.idx,docs:DB.docs,hist:DB.hist},null,1);
+    saving=saving.then(function(){
+      var body={message:'シーンフロー帳を更新',content:b64enc(text)};
+      if(SHA)body.sha=SHA;
+      return gh(CFG,'/contents/'+FILE,body);
+    }).then(function(r){
+      if(r.status===409||r.status===422)throw new Error('conflict');   /* ほかの端末が先に書いた */
+      if(!r.ok)throw errOf(r);
+      return r.json();
+    }).then(function(j){
+      writing--; failed=false; SHA=j.content.sha;
+      if(!pending)status('同期しました');
+    },function(e){
+      var m=e&&e.message;
+      writing--; pending=true; failed=true;
+      if(m==='conflict')conflict();
+      else if(m==='auth'||m==='repo'){status('同期できませんでした');gate(why(e))}
+      else{status('同期できませんでした。通信が戻ると再試行します');clearTimeout(timer);timer=setTimeout(flush,15000)}
+    });
+    return saving;
+  }
+  var asking=false;
+  function conflict(){
+    if(asking)return;
+    asking=true;
+    var ok=confirm('ほかの端末でデータが更新されています。\n\nOK：最新を読み込む（この端末でまだ同期できていない変更は失われます）\nキャンセル：この端末の内容で上書きする');
+    asking=false;
+    if(ok){reload();return}
+    status('保存中…');
+    gh(CFG,'/contents/'+FILE).then(function(r){
+      if(!r.ok)throw errOf(r);
+      return r.json();
+    }).then(function(j){SHA=j.sha;flush()},function(e){status('同期できませんでした。'+why(e))});
+  }
+  window.addEventListener('beforeunload',function(e){
+    if(pending||writing){flush();e.preventDefault();e.returnValue=''}
+  });
+
+  /* ---------- 同期先 ---------- */
+  function apply(db){
+    DB=db; S=DB.docs[cur()];
+    base={}; panel=null; undoFn=null; pending=failed=false;
+    $('toast').hidden=true;
+    setBase(); render(); renderPanels();
+  }
+  function gate(msg){
+    $('gateMsg').textContent=msg||(CFG?'同期先：'+CFG.repo+'（'+FILE+'）':'データは GitHub の非公開リポジトリに保存され、どの端末からも同じ内容を開けます。データ用リポジトリとアクセストークンを入力してください。トークンはこの端末のブラウザーにだけ保存されます。');
+    $('cfg').hidden=!!CFG; $('gateMore').hidden=!CFG;
+    $('gate').hidden=false;
+  }
+  function connect(cfg){
+    status('読み込み中…');
+    return pull(cfg).then(function(o){
+      CFG=cfg; SHA=o.sha; apply(o.db);
+      try{localStorage.setItem(CFGKEY,JSON.stringify(cfg))}catch(e){}
+      $('gate').hidden=true;
+      ['btnProj','btnHist','copy','btnFile'].forEach(function(id){$(id).hidden=false});
+      if(!o.sha)mark(); else status('同期しました');
+    });
+  }
+  function connectFail(e){status('');gate(why(e))}
+  function reload(){   /* この端末の内容を捨てて、リポジトリの最新に合わせる */
+    pending=false; clearTimeout(timer); status('読み込み中…');
+    return saving.then(function(){return pull(CFG)}).then(function(o){
+      SHA=o.sha; apply(o.db); status('最新の内容を読み込みました');
+    },function(e){status('読み込めませんでした。'+why(e))});
+  }
+  function refresh(){   /* 画面に戻ってきたとき、ほかの端末での変更を取り込む */
+    if(!CFG)return;
+    if(pending){flush();return}
+    if(writing)return;
+    pull(CFG).then(function(o){
+      if(pending||writing||o.sha===SHA)return;
+      SHA=o.sha; apply(o.db); status('最新の内容を読み込みました');
+    },function(){});
+  }
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden)flush(); else refresh();
+  });
+  window.addEventListener('online',refresh);
+  function leaveOK(){
+    return !(failed||pending)||confirm('まだ同期できていない変更があります。続けると失われます。よろしいですか？');
+  }
+  $('cfg').addEventListener('submit',function(e){
+    e.preventDefault();
+    var repo=$('cfgRepo').value.trim().replace(/^https:\/\/github\.com\//,'').replace(/(\.git)?\/*$/,''), token=$('cfgToken').value.trim();
+    if(!/^[\w.-]+\/[\w.-]+$/.test(repo)||!token){gate('「ユーザー名/リポジトリ名」とアクセストークンを入力してください。');return}
+    connect({repo:repo,token:token}).catch(connectFail);
+  });
+  $('btnFile').addEventListener('click',function(){
+    if($('gate').hidden)gate(); else $('gate').hidden=true;
+  });
+  $('btnPull').addEventListener('click',function(){
+    if(leaveOK())reload();
+  });
+  $('btnImport').addEventListener('click',function(){$('importFile').click()});
+  $('importFile').addEventListener('change',function(){
+    var f=this.files[0]; this.value='';
+    if(!f)return;
+    f.text().then(function(text){
+      var db=null; try{db=parseDB(JSON.parse(text))}catch(e){}
+      if(!db){gate('このファイルはシーンフロー帳の保存ファイルではありません。');return}
+      if(!confirm('今のデータを「'+f.name+'」の内容に置き換えます。よろしいですか？'))return;
+      apply(db); mark(); gate();
+    });
+  });
+  $('btnOut').addEventListener('click',function(){
+    if(!leaveOK()||!confirm('この端末からアクセストークンを消して、接続を解除します。データは GitHub に残ります。'))return;
+    try{localStorage.removeItem(CFGKEY)}catch(e){}
+    pending=false; location.reload();
+  });
+  function boot(){
+    var c=null;
+    try{c=JSON.parse(localStorage.getItem(CFGKEY))}catch(e){}
+    if(!c||!c.repo||!c.token){gate();return}
+    $('cfgRepo').value=c.repo; $('cfgToken').value=c.token;
+    connect(c).catch(connectFail);
+  }
+  function addSnap(id,d,note,auto){
+    var h=DB.hist[id]||(DB.hist[id]=[]), i;
+    h.unshift({id:uid(),t:Date.now(),note:note||'',auto:!!auto,theme:d.theme,flow:clone(d.flow),loop:d.loop});
+    while(h.length>MAXSNAPS){
+      for(i=h.length-1;i>0&&!h[i].auto;i--){}
+      h.splice(i>0?i:h.length-1,1);
+    }
+    mark();
+  }
+  function autoSnap(id,json){
+    var d=JSON.parse(json), h=DB.hist[id];
+    if(!docHas(d))return;
+    if(h&&h.length&&content(h[0])===json)return;
+    addSnap(id,d,'',true);
+    if(panel==='hist')renderPanels();
+  }
+  function changed(){
+    var id=cur(), b=base[id];
+    if(typeof b==='string'){base[id]=null;autoSnap(id,b)}
+    S.t=Date.now(); mark();
+    if(panel==='proj')renderPanels();
+  }
+
+  /* ---------- 企画一覧と履歴 ---------- */
+  function fmt(t){
+    var d=new Date(t), y=d.getFullYear()===new Date().getFullYear()?'':d.getFullYear()+'/';
+    return y+(d.getMonth()+1)+'/'+d.getDate()+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+  function titleOf(d){return d.theme.split('\n')[0].trim()||'無題の企画'}
+  function renderPanels(){
+    var p=$('panel'), note=$('snapNote')?$('snapNote').value:'', h='';
+    $('btnProj').setAttribute('aria-expanded',panel==='proj');
+    $('btnHist').setAttribute('aria-expanded',panel==='hist');
+    if(!panel){p.hidden=true;p.innerHTML='';return}
+    if(panel==='proj'){
+      h='<div class="phead"><h2>企画一覧</h2><button type="button" class="btn sm" data-pact="newproj">＋ 新しい企画</button></div><ul class="list">';
+      DB.idx.ids.forEach(function(id){
+        var d=DB.docs[id], on=id===cur();
+        h+='<li'+(on?' aria-current="true"':'')+'><button type="button" class="pick" data-pact="open" data-id="'+id+'"><b>'+esc(titleOf(d))+'</b>'+
+           '<small>'+(on?'表示中・':'')+countScenes(d.flow)+'シーン'+(d.t?'・'+fmt(d.t)+' 更新':'')+'</small></button>'+
+           '<button type="button" class="ico del" data-pact="delproj" data-id="'+id+'" aria-label="企画を削除" title="企画を削除">✕</button></li>';
+      });
+      h+='</ul>';
+    }else{
+      var hs=DB.hist[cur()]||[];
+      h='<div class="phead"><h2>履歴</h2><small class="empty">'+esc(titleOf(S))+'</small></div>'+
+        '<div class="recrow"><input type="text" id="snapNote" placeholder="メモ（任意）" aria-label="記録につけるメモ" value="'+esc(note)+'">'+
+        '<button type="button" class="btn sm" data-pact="snap">今の状態を記録</button></div>';
+      if(!hs.length)h+='<p class="empty">まだ記録がありません。編集を始めると、開いた時点の状態が自動で残ります。</p>';
+      else{
+        h+='<ul class="list">';
+        hs.forEach(function(s){
+          h+='<li><div class="meta"><b>'+fmt(s.t)+(s.auto?'<span class="chip">自動</span>':'')+'</b>'+
+             '<small>'+(s.note?esc(s.note)+'・':'')+countScenes(s.flow)+'シーン</small></div>'+
+             '<button type="button" class="btn sm" data-pact="restore" data-id="'+s.id+'">この状態に戻す</button>'+
+             '<button type="button" class="ico del" data-pact="delsnap" data-id="'+s.id+'" aria-label="記録を削除" title="記録を削除">✕</button></li>';
+        });
+        h+='</ul>';
+      }
+    }
+    p.innerHTML=h; p.hidden=false;
+  }
+  function toggle(name){panel=panel===name?null:name;renderPanels()}
+  $('btnProj').addEventListener('click',function(){toggle('proj')});
+  $('btnHist').addEventListener('click',function(){toggle('hist')});
+  function switchTo(id){
+    DB.idx.current=id; S=DB.docs[id]; setBase(); render(); renderPanels(); mark();
+  }
+  function record(){
+    var n=$('snapNote'); addSnap(cur(),S,n?n.value.trim():'',false);
+    if(n)n.value=''; renderPanels();
+  }
+  $('panel').addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&e.target.id==='snapNote'&&!e.isComposing){e.preventDefault();record()}
+  });
+  $('panel').addEventListener('click',function(e){
+    var b=e.target.closest('[data-pact]'); if(!b)return;
+    var a=b.dataset.pact, id=b.dataset.id, d, h, i, s;
+    if(a==='newproj'){
+      id=uid(); DB.docs[id]=fresh(); DB.hist[id]=[]; DB.idx.ids.unshift(id);
+      panel=null; switchTo(id); $('theme').focus();
+    }
+    else if(a==='open'){if(id!==cur()&&DB.docs[id])switchTo(id)}
+    else if(a==='delproj'){
+      d=DB.docs[id]; if(!d)return;
+      h=DB.hist[id]||[]; i=DB.idx.ids.indexOf(id);
+      var wasCur=cur();
+      if(docHas(d)||h.length)keepUndo('「'+titleOf(d)+'」を削除しました',function(){
+        DB.docs[id]=d; DB.hist[id]=h; DB.idx.ids.splice(Math.min(i,DB.idx.ids.length),0,id);
+        switchTo(wasCur===id?id:cur());
+      });
+      delete DB.docs[id]; delete DB.hist[id]; DB.idx.ids.splice(i,1);
+      if(!DB.idx.ids.length){s=uid();DB.docs[s]=fresh();DB.hist[s]=[];DB.idx.ids.push(s)}
+      switchTo(wasCur===id?DB.idx.ids[0]:wasCur);
+    }
+    else if(a==='snap')record();
+    else if(a==='restore'){
+      h=DB.hist[cur()]||[]; s=h.filter(function(x){return x.id===id})[0]; if(!s)return;
+      undoFlow(fmt(s.t)+' の状態に戻しました');
+      d={theme:s.theme,flow:clone(s.flow),loop:s.loop,t:Date.now()};
+      autoSnap(cur(),content(S)); base[cur()]=null;   /* 戻す直前の状態も残す */
+      DB.docs[cur()]=S=d; render(); changed(); renderPanels();
+    }
+    else if(a==='delsnap'){
+      var pid=cur(); h=DB.hist[pid]||[];
+      for(i=0;i<h.length;i++)if(h[i].id===id)break;
+      if(i>=h.length)return;
+      s=h[i]; h.splice(i,1); mark(); renderPanels();
+      keepUndo('記録を削除しました',function(){
+        if(!DB.docs[pid])return;
+        (DB.hist[pid]||(DB.hist[pid]=[])).splice(Math.min(i,DB.hist[pid].length),0,s); mark(); renderPanels();
+      });
+    }
+  });
+
+  /* ---------- 操作 ---------- */
+  $('app').addEventListener('input',function(e){
+    var el=e.target, k=el.dataset.k; if(!k)return;
+    if(el.dataset.rid){var R=RT[el.dataset.rid]; if(!R)return; R.route[k]=el.value}
+    else if(k==='theme'||k==='loop')S[k]=el.value;
+    else getList(el.dataset.l)[+el.dataset.i][k]=el.value;
+    if(el.tagName==='TEXTAREA')grow(el);
+    changed();
+  });
+  $('app').addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&e.target.classList.contains('title')&&!e.isComposing){
+      e.preventDefault(); var b=$(e.target.id.replace('t-','b-')); if(b)b.focus();
+    }
+  });
+  function keepUndo(msg,fn){
+    undoFn=fn; $('toastMsg').textContent=msg; $('toast').hidden=false;
+    clearTimeout(toastTimer); toastTimer=setTimeout(function(){$('toast').hidden=true;undoFn=null},7000);
+  }
+  function undoFlow(msg){
+    var id=cur(), j=JSON.stringify(S);
+    keepUndo(msg,function(){
+      if(!DB.docs[id])return;
+      DB.docs[id]=normalize(JSON.parse(j)); DB.docs[id].t=Date.now();
+      if(id===cur()){S=DB.docs[id];render()}
+      mark(); renderPanels();
+    });
+  }
+  $('undo').addEventListener('click',function(){
+    var f=undoFn; undoFn=null; $('toast').hidden=true; if(f)f();
+  });
+  $('app').addEventListener('click',function(e){
+    var b=e.target.closest('[data-act]'); if(!b||b.disabled)return;
+    var a=b.dataset.act, i=+b.dataset.i, L=b.dataset.l?getList(b.dataset.l):null, focus=null, s, r, R;
+    if(a==='add'){s=blank();L.splice(i,0,s);focus='t-'+s.id}
+    else if(a==='addbr'){s=newBranch();L.splice(i,0,s);focus='r-'+s.routes[0].id}
+    else if(a==='addcut'){L[i].cut='';focus='c-'+L[i].id}
+    else if(a==='delcut'){if(L[i].cut)undoFlow('カットシーンを削除しました');L[i].cut=null}
+    else if(a==='del'){
+      s=L[i]; if(itemHas(s))undoFlow((s.type==='branch'?'分岐':'シーン')+'を削除しました');
+      L.splice(i,1);
+    }
+    else if(a==='up'&&i>0){s=L[i];L[i]=L[i-1];L[i-1]=s;focus='t-'+s.id}
+    else if(a==='down'&&i<L.length-1){s=L[i];L[i]=L[i+1];L[i+1]=s;focus='t-'+s.id}
+    else if(a==='addroute'){s=L[i];if(s.routes.length>=MAXROUTES)return;r=newRoute();s.routes.push(r);focus='r-'+r.id}
+    else if(a==='delroute'){
+      R=RT[b.dataset.rid]; if(!R||R.br.routes.length<=2)return;
+      if(R.route.label||flowHas(R.route.flow))undoFlow('ルートを削除しました');
+      R.br.routes.splice(R.j,1);
+    }
+    else return;
+    render(); changed();
+    if(focus&&$(focus)){$(focus).focus();$(focus).scrollIntoView({block:'nearest',inline:'nearest'})}
+  });
+
+  /* ---------- テキスト書き出し ---------- */
+  function flowText(list,prefix,ind,L){
+    list.forEach(function(s,i){
+      var label=prefix+(i+1);
+      if(s.type==='scene'){
+        L.push(ind+'■ シーン'+label+(s.title?'：'+s.title:''));
+        if(s.body)s.body.split('\n').forEach(function(x){L.push(ind+x)});
+      }else{
+        L.push(ind+'◆ 分岐'+label);
+        s.routes.forEach(function(r,j){
+          var c=letter(j);
+          L.push(ind+'  ▼ ルート'+c+(r.label?'（'+r.label+'）':''));
+          flowText(r.flow,label+c+'-',ind+'    ',L);
+          L.push(ind+'    '+ENDS[r.end]);
+        });
+      }
+      if(i<list.length-1&&s.cut!==null)L.push(ind+'  ▶ カットシーン：'+s.cut);
+      if(!ind)L.push('');
+    });
+  }
+  function asText(){
+    var L=['【テーマ】'+S.theme,''];
+    flowText(S.flow,'','',L);
+    L.push('↩ ループ（シーン1へ）：'+S.loop);
+    return L.join('\n');
+  }
+  $('copy').addEventListener('click',function(){
+    var t=asText(), btn=$('copy');
+    var fail=function(){$('fallback').hidden=false;var ta=$('fallbackText');ta.value=t;ta.focus();ta.select()};
+    try{
+      navigator.clipboard.writeText(t).then(function(){
+        btn.textContent='コピーしました'; setTimeout(function(){btn.textContent='テキストでコピー'},1800);
+      },fail);
+    }catch(e){fail()}
+  });
+
+  boot();
+})();
+</script>
+
+</body></html>
