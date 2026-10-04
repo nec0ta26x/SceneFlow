@@ -419,7 +419,23 @@ textarea:hover,input[type=text]:hover{background:color-mix(in srgb,var(--line) 2
       if(!o.sha)mark(); else status('同期しました');
     });
   }
-  function connectFail(e){status('');gate(why(e))}
+  function diagnose(cfg){   /* リポジトリに届かないとき、トークンの持ち主と使えるリポジトリを調べて伝える */
+    var get=function(u){
+      return fetch('https://api.github.com'+u,{cache:'no-store',headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+cfg.token}}).then(function(r){
+        if(!r.ok)throw errOf(r);
+        return r.json();
+      });
+    };
+    return Promise.all([get('/user'),get('/user/repos?visibility=private&affiliation=owner&per_page=100')]).then(function(a){
+      var names=a[1].map(function(x){return x.full_name});
+      return '「'+cfg.repo+'」に届きません。このトークンは '+a[0].login+' のもので、使える非公開リポジトリは'+
+        (names.length?'「'+names.join('」「')+'」です。この名前を入力してください。':'ありません。トークンの Repository access で「Only select repositories」を選び、データ用リポジトリを追加してください。');
+    });
+  }
+  function connectFail(e,cfg){
+    status(''); gate(why(e));
+    if(e&&e.message==='repo')diagnose(cfg).then(gate,function(){});
+  }
   function reload(){   /* この端末の内容を捨てて、リポジトリの最新に合わせる */
     pending=false; clearTimeout(timer); status('読み込み中…');
     return saving.then(function(){return pull(CFG)}).then(function(o){
@@ -446,7 +462,8 @@ textarea:hover,input[type=text]:hover{background:color-mix(in srgb,var(--line) 2
     e.preventDefault();
     var repo=$('cfgRepo').value.trim().replace(/^https:\/\/github\.com\//,'').replace(/(\.git)?\/*$/,''), token=$('cfgToken').value.trim();
     if(!/^[\w.-]+\/[\w.-]+$/.test(repo)||!token){gate('「ユーザー名/リポジトリ名」とアクセストークンを入力してください。');return}
-    connect({repo:repo,token:token}).catch(connectFail);
+    var cfg={repo:repo,token:token};
+    connect(cfg).catch(function(e){connectFail(e,cfg)});
   });
   $('btnFile').addEventListener('click',function(){
     if($('gate').hidden)gate(); else $('gate').hidden=true;
@@ -475,7 +492,7 @@ textarea:hover,input[type=text]:hover{background:color-mix(in srgb,var(--line) 2
     try{c=JSON.parse(localStorage.getItem(CFGKEY))}catch(e){}
     if(!c||!c.repo||!c.token){gate();return}
     $('cfgRepo').value=c.repo; $('cfgToken').value=c.token;
-    connect(c).catch(connectFail);
+    connect(c).catch(function(e){connectFail(e,c)});
   }
   function addSnap(id,d,note,auto){
     var h=DB.hist[id]||(DB.hist[id]=[]), i;
