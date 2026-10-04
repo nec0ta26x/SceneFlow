@@ -462,6 +462,7 @@ textarea:hover,input[type=text]:hover{background:color-mix(in srgb,var(--line) 2
     e.preventDefault();
     var repo=$('cfgRepo').value.trim().replace(/^https:\/\/github\.com\//,'').replace(/(\.git)?\/*$/,''), token=$('cfgToken').value.trim();
     if(!/^[\w.-]+\/[\w.-]+$/.test(repo)||!token){gate('「ユーザー名/リポジトリ名」とアクセストークンを入力してください。');return}
+    if(!/^(github_pat_|gh[a-z]_)[A-Za-z0-9_]{20,}$/.test(token)){gate('貼り付けた文字はアクセストークンの形ではありません（先頭 '+token.slice(0,4)+'…、'+token.length+'文字）。github_pat_ で始まる長い文字列を、途中で切れないように貼り付けてください。');return}
     var cfg={repo:repo,token:token};
     connect(cfg).catch(function(e){connectFail(e,cfg)});
   });
